@@ -26,13 +26,14 @@ import tqdm
 import copy
 from cnn_ws_experiments.datasets.iam_alt import IAMDataset
 from cnn_ws_experiments.datasets.gw_alt import GWDataset
+from cnn_ws_experiments.datasets.wiener_alt import WienerDataset
 
 #from cnn_ws.transformations.homography_augmentation import HomographyAugmentation
 from cnn_ws.losses.cosine_loss import CosineLoss
 
 from cnn_ws.models.myphocnet import PHOCNet
 from cnn_ws.evaluation.retrieval import map_from_feature_matrix, map_from_query_test_feature_matrices
-from torch.utils.data.dataloader import DataLoaderIter
+from torch.utils.data.dataloader import _DataLoaderIter
 from torch.utils.data.sampler import WeightedRandomSampler
 
 from cnn_ws.utils.save_load import my_torch_save, my_torch_load
@@ -89,7 +90,7 @@ def train():
                         type=lambda str_tuple: tuple([int(elem) for elem in str_tuple.split(',')]),
                         default=None ,
                         help='Specifies the images to be resized to a fixed size when presented to the CNN. Argument must be two comma seperated numbers.')
-    parser.add_argument('--dataset', '-ds', required=True, choices=['gw','iam'], default= 'gw',
+    parser.add_argument('--dataset', '-ds', required=True, choices=['gw','iam', 'wiener'], default= 'wiener',
                         help='The dataset to be trained on')
     args = parser.parse_args()
 
@@ -109,7 +110,7 @@ def train():
     #TODO: add augmentation
     logger.info('Loading dataset %s...', args.dataset)
     if args.dataset == 'gw':
-        train_set = GWDataset(gw_root_dir='../../../phocnet-pytorch-master/data/gw',
+        train_set = GWDataset(gw_root_dir='../../data/gw',
                               cv_split_method='almazan',
                               cv_split_idx=1,
                               image_extension='.tif',
@@ -118,6 +119,12 @@ def train():
                               fixed_image_size=args.fixed_image_size,
                               min_image_width_height=args.min_image_width_height)
 
+    if args.dataset == 'wiener':
+        train_set = WienerDataset(wiener_root_dir='../../data/wiener',
+                                  embedding=args.embedding_type,
+                                  phoc_unigram_levels=args.phoc_unigram_levels,
+                                  fixed_image_size=args.fixed_image_size,
+                                  min_image_width_height=args.min_image_width_height)
 
     if args.dataset == 'iam':
         train_set = IAMDataset(gw_root_dir='../../../phocnet-pytorch-master/data/IAM',
@@ -146,7 +153,7 @@ def train():
                                   batch_size=args.batch_size, shuffle=True,
                                   num_workers=8)
 
-    train_loader_iter = DataLoaderIter(loader=train_loader)
+    train_loader_iter = _DataLoaderIter(loader=train_loader)
     test_loader = DataLoader(test_set,
                              batch_size=1,
                              shuffle=False,
@@ -162,7 +169,7 @@ def train():
     cnn.init_weights()
 
     ## pre-trained!!!!
-    load_pretrained = True
+    load_pretrained = False
     if load_pretrained:
         #cnn.load_state_dict(torch.load('PHOCNet.pt', map_location=lambda storage, loc: storage))
         my_torch_load(cnn, 'PHOCNet.pt')
@@ -202,7 +209,7 @@ def train():
         if iter_idx % args.test_interval == 0: # and iter_idx > 0:
             logger.info('Evaluating net after %d iterations', iter_idx)
             evaluate_cnn(cnn=cnn,
-                         dataset_loader=test_loader,
+                         datasest_loader=test_loader,
                          args=args)        
         for _ in range(args.iter_size):
             if train_loader_iter.batches_outstanding == 0:
@@ -217,8 +224,8 @@ def train():
                     word_img = word_img.cuda(args.gpu_id[0])
                     embedding = embedding.cuda(args.gpu_id[0])
 
-            word_img = torch.autograd.Variable(word_img)
-            embedding = torch.autograd.Variable(embedding)
+            word_img = torch.autograd.Variable(word_img).float()
+            embedding = torch.autograd.Variable(embedding).float()
             output = cnn(word_img)
             ''' BCEloss ??? '''
             loss_val = loss(output, embedding)*args.batch_size
@@ -261,8 +268,8 @@ def evaluate_cnn(cnn, dataset_loader, args):
             word_img = word_img.cuda(args.gpu_id[0])
             embedding = embedding.cuda(args.gpu_id[0])
             #word_img, embedding = word_img.cuda(args.gpu_id), embedding.cuda(args.gpu_id)
-        word_img = torch.autograd.Variable(word_img)
-        embedding = torch.autograd.Variable(embedding)
+        word_img = torch.autograd.Variable(word_img).float()
+        embedding = torch.autograd.Variable(embedding).float()
         ''' BCEloss ??? '''
         output = torch.sigmoid(cnn(word_img))
         #output = cnn(word_img)
@@ -273,7 +280,7 @@ def evaluate_cnn(cnn, dataset_loader, args):
             qry_ids.append(sample_idx)  #[sample_idx] = is_query[0]
 
     '''
-    # find queries
+    # find queriesl
 
     unique_class_ids, counts = np.unique(class_ids, return_counts=True)
     qry_class_ids = unique_class_ids[np.where(counts > 1)[0]]
