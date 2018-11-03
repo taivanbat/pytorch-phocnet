@@ -13,10 +13,10 @@ from torch.utils.data import Dataset
 
 from skimage.transform import resize
 
-from cnn_ws.io.list_io import LineListIO
-from cnn_ws.string_embeddings.phoc import build_phoc_descriptor, get_unigrams_from_strings
-from cnn_ws.transformations.image_size import check_size
-from cnn_ws.transformations.homography_augmentation import HomographyAugmentation
+from src.cnn_ws.io.list_io import LineListIO
+from src.cnn_ws.string_embeddings.phoc import build_phoc_descriptor, get_unigrams_from_strings
+from src.cnn_ws.transformations.image_size import check_size
+from src.cnn_ws.transformations.homography_augmentation import HomographyAugmentation
 
 
 class GWDataset(Dataset):

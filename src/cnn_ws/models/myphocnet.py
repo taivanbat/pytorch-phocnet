@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from math import ceil
-from cnn_ws.spatial_pyramid_layers.gpp import GPP
+from src.cnn_ws.spatial_pyramid_layers.gpp import GPP
 
 
 class PHOCNet(nn.Module):

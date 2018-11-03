@@ -13,11 +13,12 @@ from torch.utils.data import Dataset
 
 from skimage.transform import resize
 
-from cnn_ws.io.list_io import LineListIO
-from cnn_ws.string_embeddings.phoc import build_phoc_descriptor, get_unigrams_from_strings
-from cnn_ws.transformations.image_size import check_size
-from cnn_ws.transformations.homography_augmentation import HomographyAugmentation
+from src.cnn_ws.io.list_io import LineListIO
+from src.cnn_ws.string_embeddings.phoc import build_phoc_descriptor, get_unigrams_from_strings
+from src.cnn_ws.transformations.image_size import check_size
+from src.cnn_ws.transformations.homography_augmentation import HomographyAugmentation
 
+from PIL import Image
 
 class WienerDataset(Dataset):
     '''
@@ -77,6 +78,12 @@ class WienerDataset(Dataset):
                 continue
             words.append((word_img, transcr, page_id))
             word_idx += [idx]
+
+            debug = False
+
+            if debug == True:
+                word_img = Image.fromarray(np.uint8(word_img*255))
+                word_img.show()
 
         self.words = words
         # compute a mapping from class string to class id

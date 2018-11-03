@@ -14,9 +14,9 @@ from torch.utils.data import Dataset
 import scipy.io
 from skimage.transform import resize
 
-from cnn_ws.string_embeddings.phoc import build_phoc_descriptor, get_most_common_n_grams
-from cnn_ws.transformations.image_size import check_size
-from cnn_ws.transformations.homography_augmentation import HomographyAugmentation
+from src.cnn_ws.string_embeddings.phoc import build_phoc_descriptor, get_most_common_n_grams
+from src.cnn_ws.transformations.image_size import check_size
+from src.cnn_ws.transformations.homography_augmentation import HomographyAugmentation
 
 
 class IAMDataset(Dataset):

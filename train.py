@@ -14,6 +14,8 @@ do not support multi-gpu yet. needs thread manipulation
 '''
 import argparse
 import logging
+import sys
+import ipdb
 
 import numpy as np
 import torch.autograd
@@ -24,19 +26,19 @@ from torch.utils.data import DataLoader
 import tqdm
 
 import copy
-from cnn_ws_experiments.datasets.iam_alt import IAMDataset
-from cnn_ws_experiments.datasets.gw_alt import GWDataset
-from cnn_ws_experiments.datasets.wiener_alt import WienerDataset
+from experiments.cnn_ws_experiments.datasets.iam_alt import IAMDataset
+from experiments.cnn_ws_experiments.datasets.gw_alt import GWDataset
+from experiments.cnn_ws_experiments.datasets.wiener_alt import WienerDataset
 
 #from cnn_ws.transformations.homography_augmentation import HomographyAugmentation
-from cnn_ws.losses.cosine_loss import CosineLoss
+from src.cnn_ws.losses.cosine_loss import CosineLoss
 
-from cnn_ws.models.myphocnet import PHOCNet
-from cnn_ws.evaluation.retrieval import map_from_feature_matrix, map_from_query_test_feature_matrices
+from src.cnn_ws.models.myphocnet import PHOCNet
+from src.cnn_ws.evaluation.retrieval import map_from_feature_matrix, map_from_query_test_feature_matrices
 from torch.utils.data.dataloader import _DataLoaderIter
 from torch.utils.data.sampler import WeightedRandomSampler
 
-from cnn_ws.utils.save_load import my_torch_save, my_torch_load
+from src.cnn_ws.utils.save_load import my_torch_save, my_torch_load
 
 def learning_rate_step_parser(lrs_string):
     return [(int(elem.split(':')[0]), float(elem.split(':')[1])) for elem in lrs_string.split(',')]
@@ -120,7 +122,7 @@ def train():
                               min_image_width_height=args.min_image_width_height)
 
     if args.dataset == 'wiener':
-        train_set = WienerDataset(wiener_root_dir='../../data/wiener',
+        train_set = WienerDataset(wiener_root_dir='data/wiener',
                                   embedding=args.embedding_type,
                                   phoc_unigram_levels=args.phoc_unigram_levels,
                                   fixed_image_size=args.fixed_image_size,
@@ -209,8 +211,8 @@ def train():
         if iter_idx % args.test_interval == 0: # and iter_idx > 0:
             logger.info('Evaluating net after %d iterations', iter_idx)
             evaluate_cnn(cnn=cnn,
-                         datasest_loader=test_loader,
-                         args=args)        
+                         dataset_loader=test_loader,
+                         args=args)
         for _ in range(args.iter_size):
             if train_loader_iter.batches_outstanding == 0:
                 train_loader_iter = DataLoaderIter(loader=train_loader)
