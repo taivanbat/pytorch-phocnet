@@ -11,11 +11,12 @@ do not support multi-gpu yet. needs thread manipulation
 - do not normalize with respect to iter size (or batch size) for speed
 - add fixed size selection (not hardcoded)
 - save and load hardcoded name 'PHOCNet.pt'
+
+edited by @taivanbat for project
 '''
 import argparse
 import logging
 import sys
-import ipdb
 
 import numpy as np
 import torch.autograd
@@ -95,7 +96,7 @@ def train():
     parser.add_argument('--dataset', '-ds', required=True, choices=['gw','iam', 'wiener'], default= 'wiener',
                         help='The dataset to be trained on')
     args = parser.parse_args()
-
+    
     # sanity checks
     if not torch.cuda.is_available():
         logger.warning('Could not find CUDA environment, using CPU mode')
@@ -171,7 +172,7 @@ def train():
     cnn.init_weights()
 
     ## pre-trained!!!!
-    load_pretrained = False
+    load_pretrained = True
     if load_pretrained:
         #cnn.load_state_dict(torch.load('PHOCNet.pt', map_location=lambda storage, loc: storage))
         my_torch_load(cnn, 'PHOCNet.pt')
@@ -204,18 +205,27 @@ def train():
         optimizer = torch.optim.Adam(cnn.parameters(), args.learning_rate_step[0][1],
                                     weight_decay=args.weight_decay)
 
-
+    # set best_mAP, because loading pretrained model that we shouldn't overwrite
+    best_mAP = 31.75 # 0.0 
     optimizer.zero_grad()
     logger.info('Training:')
+
     for iter_idx in range(max_iters):
         if iter_idx % args.test_interval == 0: # and iter_idx > 0:
             logger.info('Evaluating net after %d iterations', iter_idx)
-            evaluate_cnn(cnn=cnn,
+            mAP = evaluate_cnn(cnn=cnn,
                          dataset_loader=test_loader,
                          args=args)
+
+            if mAP > best_mAP and iter_idx % args.test_interval == 0 and iter_idx != 0: 
+                # save best model and keep track of best mAP 
+                logger.info('new best mAP! saving model...')
+                my_torch_save(cnn, 'PHOCNet.pt')
+                best_mAP = mAP
+
         for _ in range(args.iter_size):
             if train_loader_iter.batches_outstanding == 0:
-                train_loader_iter = DataLoaderIter(loader=train_loader)
+                train_loader_iter = _DataLoaderIter(loader=train_loader)
                 logger.info('Resetting data loader')
             word_img, embedding, _, _ = train_loader_iter.next()
             if args.gpu_id is not None:
@@ -245,14 +255,7 @@ def train():
             for param_group in optimizer.param_groups:
                 param_group['lr'] = args.learning_rate_step[lr_cnt][1]
 
-        #if (iter_idx + 1) % 10000 == 0:
-        #    torch.save(cnn.state_dict(), 'PHOCNet.pt')
-            # .. to load your previously training model:
-            #cnn.load_state_dict(torch.load('PHOCNet.pt'))
-
-    #torch.save(cnn.state_dict(), 'PHOCNet.pt')
-    my_torch_save(cnn, 'PHOCNet.pt')
-
+    my_torch_save(cnn, 'PHOCNet_last.pt')
 
 def evaluate_cnn(cnn, dataset_loader, args):
     logger = logging.getLogger('PHOCNet-Experiment::test')
@@ -304,16 +307,20 @@ def evaluate_cnn(cnn, dataset_loader, args):
                                                          test_labels=class_ids,
                                                          metric='cosine',
                                                          drop_first=True)
-
-    logger.info('mAP: %3.2f', np.mean(ave_precs_qbe[ave_precs_qbe > 0])*100)
-
-
+    
+    mAP = np.mean(ave_precs_qbe[ave_precs_qbe > 0])
+    logger.info('mAP: %3.2f', mAP*100)
 
     # clean up -> set CNN in train mode again
     cnn.train()
 
+    # return mAP and save if new best accuracy
+    return mAP
+
 if __name__ == '__main__':
-    logging.basicConfig(format='[%(asctime)s, %(levelname)s, %(name)s] %(message)s',
+    logging.basicConfig(filename='train.log',
+                        format='[%(asctime)s, %(levelname)s, %(name)s] %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S',
-                        level=logging.INFO)
+                        level=logging.INFO,
+                        stream=sys.stdout)
     train()
