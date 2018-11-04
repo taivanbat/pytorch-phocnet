@@ -175,6 +175,6 @@ def run_query(n, candidates, candidates_labels, queries, args, wiener=True):
                 im_path = os.path.join(wiener_root_dir, 'candidates', 'word_images', im_label[0], im_label[1] + '.jpg')
                 img = img_io.imread(im_path)
                 img = Image.fromarray(np.uint8(img * 255))
-                img.save(os.path.join(results_dir, str(result_i) + '.jpg'))
+                img.save(os.path.join(results_dir, candidates_labels[idx] + '_' + str(result_i) + '.jpg'))
 
     return sorted_results
