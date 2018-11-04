@@ -172,7 +172,7 @@ def train():
     cnn.init_weights()
 
     ## pre-trained!!!!
-    load_pretrained = True
+    load_pretrained = False
     if load_pretrained:
         #cnn.load_state_dict(torch.load('PHOCNet.pt', map_location=lambda storage, loc: storage))
         my_torch_load(cnn, 'PHOCNet.pt')

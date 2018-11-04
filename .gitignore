@@ -3,3 +3,5 @@ data/
 .env/
 *.pt
 *.log
+*.json
+*.npy

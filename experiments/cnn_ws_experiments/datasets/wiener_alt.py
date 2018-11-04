@@ -81,7 +81,7 @@ class WienerDataset(Dataset):
 
             debug = False
 
-            if debug == True:
+            if debug:
                 word_img = Image.fromarray(np.uint8(word_img*255))
                 word_img.show()
 
@@ -102,8 +102,8 @@ class WienerDataset(Dataset):
         word_strings = [elem[1] for elem in words]
         if embedding == 'phoc':
             self.word_embeddings = build_phoc_descriptor(words=word_strings,
-                                                                phoc_unigrams=unigrams,
-                                                                unigram_levels=phoc_unigram_levels)
+                                                         phoc_unigrams=unigrams,
+                                                         unigram_levels=phoc_unigram_levels)
         elif embedding == 'spoc':
             raise NotImplementedError()
         else:

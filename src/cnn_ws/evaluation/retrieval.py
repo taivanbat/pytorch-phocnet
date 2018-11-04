@@ -3,8 +3,10 @@ Created on Dec 1, 2014
 
 @author: ssudholt
 '''
+import os
 import numpy as np
 from scipy.spatial.distance import cdist, pdist, squareform
+from src.cnn_ws.string_embeddings.phoc import build_phoc_descriptor, get_unigrams_from_strings
 
 def average_precision(ret_vec_relevance, gt_relevance_num=None):
     '''
@@ -127,4 +129,30 @@ def map_from_feature_matrix(features, labels, metric, drop_first):
     mean_ap = np.mean(avg_precs)
     return mean_ap, avg_precs
 
+def run_query(n, candidates, candidates_labels, queries, wiener=True):
+    '''
+    inputs:
+        n -- integer indicating how many results to return, -1 means return entire pool of candidates, ranked
+        candidates -- an NxM matrix where each row is the estimated PHOC of the word image
+        queries -- the list of words that we would like to find. We also convert this to an LxM matrix where each
+            row l is the PHOC representation of the l-th word
 
+    :return: indices of n highest search results as a list
+    '''
+    unigrams = []
+    if wiener:
+        wiener_root_dir = 'data/wiener'
+        phoc_unigram_levels = (1, 2, 4, 8)
+        img_filenames = sorted([elem for elem in os.listdir(os.path.join(wiener_root_dir, 'queries', 'word_images'))
+                                if elem.endswith('.png')])
+        all_names = ''.join(img_filenames)
+        all_names = all_names.decode('utf-8')
+        unigrams = list(set(all_names))
+
+    query_phoc = build_phoc_descriptor(words=queries,
+                                       phoc_unigrams=unigrams,
+                                       unigram_levels=phoc_unigram_levels)
+
+
+
+    return results
