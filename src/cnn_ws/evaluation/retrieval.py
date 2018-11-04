@@ -133,10 +133,10 @@ def map_from_feature_matrix(features, labels, metric, drop_first):
     mean_ap = np.mean(avg_precs)
     return mean_ap, avg_precs
 
-def run_query(n, candidates, candidates_labels, queries, args, wiener=True):
+def run_query(num_save, candidates, candidates_labels, queries, args, wiener=True):
     '''
     inputs:
-        n -- integer indicating how many results to return, -1 means return entire pool of candidates, ranked
+        num_save -- integer indicating how many results to return, -1 means return entire pool of candidates, ranked
         candidates -- an NxM matrix where each row is the estimated PHOC of the word image
         queries -- the list of words that we would like to find. We also convert this to an LxM matrix where each
             row l is the PHOC representation of the l-th word
@@ -169,7 +169,7 @@ def run_query(n, candidates, candidates_labels, queries, args, wiener=True):
             os.makedirs(results_dir)
 
             # save top 10 results
-            for result_i in range(10):
+            for result_i in range(num_save):
                 idx = sorted_results[j, result_i]
                 im_label = candidates_labels[idx].split('_')
                 im_path = os.path.join(wiener_root_dir, 'candidates', 'word_images', im_label[0], im_label[1] + '.jpg')

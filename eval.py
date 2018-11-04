@@ -32,9 +32,9 @@ def eval():
 
     parser.add_argument('--debug', default=False, help='Set to true if we want to debug')
     parser.add_argument('--save_im_results', default=True, help='Set to true if we want to save top 10 results of search')
-
+    parser.add_argument('--num_save_im', default=10, help='how many images to save')
     args = parser.parse_args()
-
+    args.num_save_im = int(args.num_save_im) 
     # if GPU is not available, use CPU
     if not torch.cuda.is_available():
         args.gpu_id = None
@@ -53,7 +53,7 @@ def eval():
     # can make this such that it loads from a json file
     queries = ['und', 'ich', 'bin', 'eigen', 'besonders']
 
-    results = run_query(-1, candidates, candidates_labels, queries, args)
+    results = run_query(args.num_save_im, candidates, candidates_labels, queries, args)
 
     # save the results. This is a num_queries x num_candidates sized matrix where the indices
     # of the most likely result is stored in column 1, and the second most likely is stored
@@ -97,12 +97,14 @@ def make_candidates(args):
             word_imgs = [img_io.imread(os.path.join(path_to_cands, folder, word_img_name))
                          for word_img_name in word_img_names]
 
+            word_imgs = [torch.autograd.Variable(torch.from_numpy(word_img)).float() for word_img in word_imgs]
+
             if args.gpu_id is not None:
                 word_imgs = [word_img.cuda(args.gpu_id[0]) for word_img in word_imgs]
 
-            word_imgs = [torch.autograd.Variable(torch.from_numpy(word_img)).float() for word_img in word_imgs]
             word_imgs = [word_img.unsqueeze(0) for word_img in word_imgs]
             word_imgs = [word_img.unsqueeze(0) for word_img in word_imgs]
+
             # get phoc representation of words
             word_phocs = [torch.sigmoid(cnn(word_img)) for word_img in word_imgs]
             word_phocs = [word_phoc.data.cpu().numpy().flatten() for word_phoc in word_phocs]
