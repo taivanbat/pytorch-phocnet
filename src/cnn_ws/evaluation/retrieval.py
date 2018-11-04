@@ -4,7 +4,11 @@ Created on Dec 1, 2014
 @author: ssudholt
 '''
 import os
+
 import numpy as np
+from PIL import Image
+from skimage import io as img_io
+
 from scipy.spatial.distance import cdist, pdist, squareform
 from src.cnn_ws.string_embeddings.phoc import build_phoc_descriptor, get_unigrams_from_strings
 
@@ -129,7 +133,7 @@ def map_from_feature_matrix(features, labels, metric, drop_first):
     mean_ap = np.mean(avg_precs)
     return mean_ap, avg_precs
 
-def run_query(n, candidates, candidates_labels, queries, wiener=True):
+def run_query(n, candidates, candidates_labels, queries, args, wiener=True):
     '''
     inputs:
         n -- integer indicating how many results to return, -1 means return entire pool of candidates, ranked
@@ -153,6 +157,24 @@ def run_query(n, candidates, candidates_labels, queries, wiener=True):
                                        phoc_unigrams=unigrams,
                                        unigram_levels=phoc_unigram_levels)
 
+    dist = cdist(query_phoc, candidates, 'euclidean')
+    sorted_results = np.argsort(dist, axis=1)
 
+    if args.save_im_results:
+        # display the word along with its top 10 results
+        for j, query in enumerate(queries):
+            # make directory with query name
+            default_dir = os.path.join(wiener_root_dir, 'results')
+            results_dir = os.path.join(default_dir, query)
+            os.makedirs(results_dir)
 
-    return results
+            # save top 10 results
+            for result_i in range(10):
+                idx = sorted_results[j, result_i]
+                im_label = candidates_labels[idx].split('_')
+                im_path = os.path.join(wiener_root_dir, 'candidates', 'word_images', im_label[0], im_label[1] + '.jpg')
+                img = img_io.imread(im_path)
+                img = Image.fromarray(np.uint8(img * 255))
+                img.save(os.path.join(results_dir, str(result_i) + '.jpg'))
+
+    return sorted_results

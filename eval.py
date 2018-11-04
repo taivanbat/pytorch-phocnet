@@ -31,6 +31,7 @@ def eval():
                         help='The ID of the GPU to use. If not specified, training is run in CPU mode.')
 
     parser.add_argument('--debug', default=False, help='Set to true if we want to debug')
+    parser.add_argument('--save_im_results', default=True, help='Set to true if we want to save top 10 results of search')
 
     args = parser.parse_args()
 
@@ -52,7 +53,12 @@ def eval():
     # can make this such that it loads from a json file
     queries = ['und', 'ich', 'bin', 'eigen', 'besonders']
 
-    results = run_query(-1, candidates, candidates_labels, queries)
+    results = run_query(-1, candidates, candidates_labels, queries, args)
+
+    # save the results. This is a num_queries x num_candidates sized matrix where the indices
+    # of the most likely result is stored in column 1, and the second most likely is stored
+    # in column 2 and so on
+    np.save('results.npy', results)
 
 def make_candidates(args):
     # load model, create candidates
