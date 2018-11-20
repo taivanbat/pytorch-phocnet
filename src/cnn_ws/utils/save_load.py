@@ -14,9 +14,10 @@ def my_torch_save(model, filename, gpu_id=0):
 
     model_parameters = {name : param.data for name, param in model.named_parameters()}
     torch.save(model_parameters, filename)
-    
-    # put model back onto GPU 
-    model.cuda(gpu_id)
+
+    if torch.cuda.is_available():
+        # put model back onto GPU
+        model.cuda(gpu_id)
 
 def my_torch_load(model, filename, use_list=None):
 

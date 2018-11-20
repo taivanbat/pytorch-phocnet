@@ -126,8 +126,8 @@ class WienerDataset(Dataset):
                 raise NotImplementedError()
 
     def mainLoader(self, partition=None, transforms=HomographyAugmentation()):
-        self.split_percent = 0.8
-        train_split_idx = int(0.8*len(self.words))
+        self.split_percent = 0.9
+        train_split_idx = int(self.split_percent*len(self.words))
 
         self.transforms = transforms
         if partition not in [None, 'train', 'test']:
