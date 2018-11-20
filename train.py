@@ -181,66 +181,68 @@ def train(params, args):
     logging.info('Training:')
 
     loss_avg = utils.RunningAverage()
+    
+    epochs = 5
+    for epoch in range(epochs):
+        with tqdm(len(train_loader)) as t:
+            for iter_idx in range(max_iters):
+                if iter_idx % params.test_interval == 0: # and iter_idx > 0:
+                    logging.info('Evaluating net after %d iterations', iter_idx)
+                    val_acc = evaluate_cnn(cnn=cnn,
+                                 dataset_loader=test_loader,
+                                 args=args)
 
-    with tqdm(total=max_iters) as t:
-        for iter_idx in range(max_iters):
-            if iter_idx % params.test_interval == 0: # and iter_idx > 0:
-                logging.info('Evaluating net after %d iterations', iter_idx)
-                val_acc = evaluate_cnn(cnn=cnn,
-                             dataset_loader=test_loader,
-                             args=args)
+                    is_best = val_acc >= best_val_acc
 
-                is_best = val_acc >= best_val_acc
+                    if is_best and iter_idx % params.test_interval == 0 and iter_idx != 0:
+                        logging.info("- Found new best accuracy")
+                        best_val_acc = val_acc
 
-                if is_best and iter_idx % params.test_interval == 0 and iter_idx != 0:
-                    logging.info("- Found new best accuracy")
-                    best_val_acc = val_acc
+                        # Save best val metrics in a json file in the model directory
+                        best_json_path = os.path.join(args.model_dir, "metrics_val_best_weights.json")
 
-                    # Save best val metrics in a json file in the model directory
-                    best_json_path = os.path.join(args.model_dir, "metrics_val_best_weights.json")
+                        # TODO: replace this with more general case
+                        val_metrics = {}
+                        val_metrics['mAP'] = best_val_acc
 
-                    # TODO: replace this with more general case
-                    val_metrics = {}
-                    val_metrics['mAP'] = best_val_acc
-
-                    utils.save_dict_to_json(val_metrics, best_json_path)
-                    my_torch_save(cnn, os.path.join(args.model_dir, 'PHOCNET_best.pt'))
+                        utils.save_dict_to_json(val_metrics, best_json_path)
+                        my_torch_save(cnn, os.path.join(args.model_dir, 'PHOCNET_best.pt'))
 
 
-            for _ in range(params.iter_size):
-                if train_loader_iter.batches_outstanding == 0:
-                    train_loader_iter = _DataLoaderIter(loader=train_loader)
-                    logging.info('Resetting data loader')
-                word_img, embedding, _, _ = train_loader_iter.next()
-                if args.gpu_id is not None:
-                    if len(args.gpu_id) > 1:
-                        word_img = word_img.cuda()
-                        embedding = embedding.cuda()
-                    else:
-                        word_img = word_img.cuda(args.gpu_id[0])
-                        embedding = embedding.cuda(args.gpu_id[0])
+                for _ in range(params.iter_size):
+                    if train_loader_iter.batches_outstanding == 0:
+                        train_loader_iter = _DataLoaderIter(loader=train_loader)
+                        logging.info('Resetting data loader')
+                    word_img, embedding, _, _ = train_loader_iter.next()
+                    if args.gpu_id is not None:
+                        if len(args.gpu_id) > 1:
+                            word_img = word_img.cuda()
+                            embedding = embedding.cuda()
+                        else:
+                            word_img = word_img.cuda(args.gpu_id[0])
+                            embedding = embedding.cuda(args.gpu_id[0])
 
-                word_img = torch.autograd.Variable(word_img).float()
-                embedding = torch.autograd.Variable(embedding).float()
-                output = cnn(word_img)
-                ''' BCEloss ??? '''
-                loss_val = loss(output, embedding)*params.batch_size
-                loss_val.backward()
+                    word_img = torch.autograd.Variable(word_img).float()
+                    embedding = torch.autograd.Variable(embedding).float()
+                    output = cnn(word_img)
+                    ''' BCEloss ??? '''
+                    loss_val = loss(output, embedding)*params.batch_size
+                    loss_val.backward()
 
-            optimizer.step()
-            optimizer.zero_grad()
+                optimizer.step()
+                optimizer.zero_grad()
 
-            # change lr
-            if (iter_idx + 1) == params.learning_rate_step[lr_cnt][0] and (iter_idx+1) != max_iters:
-                lr_cnt += 1
-                for param_group in optimizer.param_groups:
-                    param_group['lr'] = params.learning_rate_step[lr_cnt][1]
+                # change lr
+                if (iter_idx + 1) == params.learning_rate_step[lr_cnt][0] and (iter_idx+1) != max_iters:
+                    lr_cnt += 1
+                    for param_group in optimizer.param_groups:
+                        param_group['lr'] = params.learning_rate_step[lr_cnt][1]
 
-            # update the average loss
-            loss_avg.update(loss_val.item())
-            t.set_postfix(loss='{:05.3f}'.format(loss_avg()))
+                # update the average loss
+                loss_avg.update(loss_val.item())
+                t.set_postfix(loss='{:05.3f}'.format(loss_avg()))
 
-            t.update()
+                t.update()
 
     my_torch_save(cnn, os.path.join(args.model_dir, 'PHOCNET_last.pt'))
 

@@ -3,7 +3,6 @@ import logging
 import os
 import shutil
 import numpy as np
-import ipdb
 
 import torch
 from skimage import io
