@@ -40,6 +40,7 @@ from torch.utils.data.dataloader import _DataLoaderIter
 from torch.utils.data.sampler import WeightedRandomSampler
 
 from src.cnn_ws.utils.save_load import my_torch_save, my_torch_load
+from src.cnn_ws.utils import utils
 
 def learning_rate_step_parser(lrs_string):
     return [(int(elem.split(':')[0]), float(elem.split(':')[1])) for elem in lrs_string.split(',')]
