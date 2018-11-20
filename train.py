@@ -126,7 +126,6 @@ def train(params, args):
                                   batch_size=params.batch_size, shuffle=True,
                                   num_workers=8)
 
-    train_loader_iter = _DataLoaderIter(loader=train_loader)
     test_loader = DataLoader(test_set,
                              batch_size=1,
                              shuffle=False,
@@ -182,10 +181,11 @@ def train(params, args):
 
     loss_avg = utils.RunningAverage()
     
-    epochs = 5
-    for epoch in range(epochs):
+    for epoch in range(params.epochs):
         with tqdm(len(train_loader)) as t:
-            for iter_idx in range(max_iters):
+            for iter_idx, sample in enumerate(train_loader):
+                word_img, embedding, _, _ = sample
+
                 if iter_idx % params.test_interval == 0: # and iter_idx > 0:
                     logging.info('Evaluating net after %d iterations', iter_idx)
                     val_acc = evaluate_cnn(cnn=cnn,
@@ -208,26 +208,20 @@ def train(params, args):
                         utils.save_dict_to_json(val_metrics, best_json_path)
                         my_torch_save(cnn, os.path.join(args.model_dir, 'PHOCNET_best.pt'))
 
+                if args.gpu_id is not None:
+                    if len(args.gpu_id) > 1:
+                        word_img = word_img.cuda()
+                        embedding = embedding.cuda()
+                    else:
+                        word_img = word_img.cuda(args.gpu_id[0])
+                        embedding = embedding.cuda(args.gpu_id[0])
 
-                for _ in range(params.iter_size):
-                    if train_loader_iter.batches_outstanding == 0:
-                        train_loader_iter = _DataLoaderIter(loader=train_loader)
-                        logging.info('Resetting data loader')
-                    word_img, embedding, _, _ = train_loader_iter.next()
-                    if args.gpu_id is not None:
-                        if len(args.gpu_id) > 1:
-                            word_img = word_img.cuda()
-                            embedding = embedding.cuda()
-                        else:
-                            word_img = word_img.cuda(args.gpu_id[0])
-                            embedding = embedding.cuda(args.gpu_id[0])
-
-                    word_img = torch.autograd.Variable(word_img).float()
-                    embedding = torch.autograd.Variable(embedding).float()
-                    output = cnn(word_img)
-                    ''' BCEloss ??? '''
-                    loss_val = loss(output, embedding)*params.batch_size
-                    loss_val.backward()
+                word_img = torch.autograd.Variable(word_img).float()
+                embedding = torch.autograd.Variable(embedding).float()
+                output = cnn(word_img)
+                ''' BCEloss ??? '''
+                loss_val = loss(output, embedding)*params.batch_size
+                loss_val.backward()
 
                 optimizer.step()
                 optimizer.zero_grad()
