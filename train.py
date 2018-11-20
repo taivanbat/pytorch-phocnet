@@ -182,7 +182,7 @@ def train(params, args):
     loss_avg = utils.RunningAverage()
     
     for epoch in range(params.epochs):
-        with tqdm(len(train_loader)) as t:
+        with tqdm(total=len(train_loader)) as t:
             for iter_idx, sample in enumerate(train_loader):
                 word_img, embedding, _, _ = sample
 
@@ -235,7 +235,6 @@ def train(params, args):
                 # update the average loss
                 loss_avg.update(loss_val.item())
                 t.set_postfix(loss='{:05.3f}'.format(loss_avg()))
-
                 t.update()
 
     my_torch_save(cnn, os.path.join(args.model_dir, 'PHOCNET_last.pt'))
