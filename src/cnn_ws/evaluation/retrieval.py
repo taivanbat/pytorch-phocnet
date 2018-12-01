@@ -157,8 +157,7 @@ def run_query(num_save, candidates, candidates_labels, queries, args, wiener=Tru
                                        phoc_unigrams=unigrams,
                                        unigram_levels=phoc_unigram_levels)
 
-    # TODO: replace this line with metric from whatever model we're using
-    dist = cdist(query_phoc, candidates, 'cosine')
+    dist = cdist(query_phoc, candidates, params.eval_metric)
     sorted_results = np.argsort(dist, axis=1)
 
     if args.save_im_results:

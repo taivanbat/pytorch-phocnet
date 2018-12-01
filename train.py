@@ -225,7 +225,7 @@ def train(params, args):
             logging.info('Evaluating net after %d epochs', epoch + 1)
             val_acc = evaluate_cnn(cnn=cnn,
                          dataset_loader=test_loader,
-                         args=args)
+                         args=args, params=params)
 
             is_best = val_acc >= best_val_acc
 
@@ -244,7 +244,7 @@ def train(params, args):
                 my_torch_save(cnn, os.path.join(args.model_dir, 'PHOCNET_best.pt'))
     my_torch_save(cnn, os.path.join(args.model_dir, 'PHOCNET_last.pt'))
 
-def evaluate_cnn(cnn, dataset_loader, args):
+def evaluate_cnn(cnn, dataset_loader, args, params):
     # set the CNN in eval mode
     cnn.eval()
     logging.info('Computing net output:')
@@ -287,12 +287,12 @@ def evaluate_cnn(cnn, dataset_loader, args):
     # run word spotting
     logging.info('Computing mAPs...')
 
-    # TODO make it so that we can choose the evaluation metric from args 
+    # we choose the evaluation metric from the given parameters 
     ave_precs_qbe = map_from_query_test_feature_matrices(query_features = qry_outputs,
                                                          test_features=outputs,
                                                          query_labels = qry_class_ids,
                                                          test_labels=class_ids,
-                                                         metric='cosine',
+                                                         metric=params.eval_metric,
                                                          drop_first=True)
     
     mAP = np.mean(ave_precs_qbe[ave_precs_qbe > 0])

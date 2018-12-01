@@ -22,26 +22,29 @@ from src.cnn_ws.evaluation.retrieval import run_query
 from src.cnn_ws.utils.save_load import my_torch_load, my_torch_save
 from src.cnn_ws.models.myphocnet import PHOCNet
 
-def eval():
-    parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser()
+# eval arguments
+parser.add_argument('--gpu_id', '-gpu', action='store',
+                    type=lambda str_list: [int(elem) for elem in str_list.split(',')],
+                    default='0',
+                    help='The ID of the GPU to use. If not specified, training is run in CPU mode.')
+parser.add_argument('--model_dir', default='models/base_model', help="Directory containing params.json")
+parser.add_argument('--debug', default=False, help='Set to true if we want to debug')
+parser.add_argument('--save_im_results', default=True, help='Set to true if we want to save top num_save_im results of search')
+parser.add_argument('--num_save_im', default=10, help='how many images to save')
 
-    parser.add_argument('--gpu_id', '-gpu', action='store',
-                        type=lambda str_list: [int(elem) for elem in str_list.split(',')],
-                        default='0',
-                        help='The ID of the GPU to use. If not specified, training is run in CPU mode.')
+# TODO add ability to load wiener from words from json
+parser.add_argument('--wiener_from_json', default=False)
+args = parser.parse_args()
+args.num_save_im = int(args.num_save_im) 
+# if GPU is not available, use CPU
+if not torch.cuda.is_available():
+    args.gpu_id = None
 
-    parser.add_argument('--debug', default=False, help='Set to true if we want to debug')
-    parser.add_argument('--save_im_results', default=True, help='Set to true if we want to save top 10 results of search')
-    parser.add_argument('--num_save_im', default=10, help='how many images to save')
-    args = parser.parse_args()
-    args.num_save_im = int(args.num_save_im) 
-    # if GPU is not available, use CPU
-    if not torch.cuda.is_available():
-        args.gpu_id = None
-
+def eval(args, params):
     # if candidates aren't known, make them
     if 'candidates.npy' not in os.listdir('.') or 'candidates_labels.json' not in os.listdir('.'):
-        candidates, candidates_labels = make_candidates(args)
+        candidates, candidates_labels = make_candidates(args=args, params=params)
     else:
         # load candidates
         candidates = np.load('candidates.npy')
@@ -53,15 +56,17 @@ def eval():
     # can make this such that it loads from a json file
     queries = ['und', 'ich', 'bin', 'eigen', 'besonders']
 
-    results = run_query(args.num_save_im, candidates, candidates_labels, queries, args)
+    results = run_query(args.num_save_im, candidates, candidates_labels, queries, args, params)
 
     # save the results. This is a num_queries x num_candidates sized matrix where the indices
     # of the most likely result is stored in column 1, and the second most likely is stored
     # in column 2 and so on
     np.save('results.npy', results)
 
-def make_candidates(args):
+def make_candidates(args=args, params=params):
     # load model, create candidates
+    # TODO path to candidates should be an argument 
+    # TODO specify whether we're loading wiener from json files
     path_to_cands = 'data/wiener/candidates/word_images'
     folders = os.listdir(path_to_cands)
     folders = [folder for folder in folders if folder != '.DS_Store']
@@ -77,6 +82,8 @@ def make_candidates(args):
                   pooling_levels=([1], [5]))
 
     cnn.init_weights()
+
+    # TODO: make loading from model_dir 
     my_torch_load(cnn, 'PHOCNet_50k.pt')
 
     if args.gpu_id is not None:
@@ -85,8 +92,8 @@ def make_candidates(args):
     # set to eval mode
     cnn.eval()
 
-    candidates = []  #
-    candidates_labels = []  #
+    candidates = []
+    candidates_labels = []
 
     with tqdm(total=len(folders)) as t:
         for i, folder in enumerate(folders):
@@ -128,4 +135,9 @@ def make_candidates(args):
     return candidates, candidates_labels
 
 if __name__ == '__main__':
-    eval()
+    args = parser.parse_args()
+    json_path = os.path.join(args.model_dir, 'params.json')
+    assert os.path.isfile(json_path), "No json configuration file found at {}".format(json_path)
+    params = utils.Params(json_path)
+
+    eval(args=args, params=params)
