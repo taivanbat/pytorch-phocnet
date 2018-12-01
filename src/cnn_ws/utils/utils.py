@@ -38,6 +38,8 @@ class Params():
         """Gives dict-like access to Params instance by `params.dict['learning_rate']"""
         return self.__dict__
 
+    def args_to_params(self, args):
+        return self.__dict__.update(args.__dict__)
 
 class RunningAverage():
     """A simple class that maintains the running average of a quantity

@@ -61,19 +61,19 @@ parser.add_argument('--fixed_image_size', '-fim', action='store',
 def learning_rate_step_parser(lrs_string):
     return [(int(elem.split(':')[0]), float(elem.split(':')[1])) for elem in lrs_string.split(',')]
 
-def train(params, args):
+def train(params):
     logging.info('--- Running PHOCNet Training ---')
 
     # sanity checks
     if not torch.cuda.is_available():
         logging.warning('Could not find CUDA environment, using CPU mode')
-        args.gpu_id = None
+        params.gpu_id = None
 
     # print out the used arguments
     """
     logging.info('###########################################')
     logging.info('Experiment Parameters:')
-    for key, value in vars(args).iteritems():
+    for key, value in vars(params).iteritems():
         logging.info('%s: %s', str(key), str(value))
     logging.info('###########################################')
     """
@@ -89,14 +89,14 @@ def train(params, args):
                               image_extension='.tif',
                               embedding=params.embedding_type,
                               phoc_unigram_levels=params.phoc_unigram_levels,
-                              fixed_image_size=args.fixed_image_size,
+                              fixed_image_size=params.fixed_image_size,
                               min_image_width_height=params.min_image_width_height)
 
     if params.dataset == 'wiener':
         train_set = WienerDataset(wiener_root_dir='data/wiener',
                                   embedding=params.embedding_type,
                                   phoc_unigram_levels=params.phoc_unigram_levels,
-                                  fixed_image_size=args.fixed_image_size,
+                                  fixed_image_size=params.fixed_image_size,
                                   min_image_width_height=params.min_image_width_height)
 
     if params.dataset == 'iam':
@@ -104,7 +104,7 @@ def train(params, args):
                                image_extension='.png',
                                embedding=params.embedding_type,
                                phoc_unigram_levels=params.phoc_unigram_levels,
-                               fixed_image_size=args.fixed_image_size,
+                               fixed_image_size=params.fixed_image_size,
                                min_image_width_height=params.min_image_width_height)
 
     test_set = copy.copy(train_set)
@@ -140,9 +140,8 @@ def train(params, args):
 
     cnn.init_weights()
 
-    if args.restore_file is not None:
-        #cnn.load_state_dict(torch.load('PHOCNet.pt', map_location=lambda storage, loc: storage))
-        my_torch_load(cnn, os.path.join(args.model_dir, args.restore_file))
+    if params.restore_file is not None:
+        my_torch_load(cnn, os.path.join(params.model_dir, params.restore_file))
 
     loss_selection = params.loss_selection # 'BCE' or 'cosine'
     if loss_selection == 'BCE':
@@ -153,12 +152,12 @@ def train(params, args):
         raise ValueError('not supported loss function')
 
     # move CNN to GPU
-    if args.gpu_id is not None:
-        if len(args.gpu_id) > 1:
-            cnn = nn.DataParallel(cnn, device_ids=args.gpu_id)
+    if params.gpu_id is not None:
+        if len(params.gpu_id) > 1:
+            cnn = nn.DataParallel(cnn, device_ids=params.gpu_id)
             cnn.cuda()
         else:
-            cnn.cuda(args.gpu_id[0])
+            cnn.cuda(params.gpu_id[0])
 
     # run training
     lr_cnt = 0
@@ -190,13 +189,13 @@ def train(params, args):
                 # get actual step number 
                 current_step = epoch*len(train_loader) + iter_idx 
             
-                if args.gpu_id is not None:
-                    if len(args.gpu_id) > 1:
+                if params.gpu_id is not None:
+                    if len(params.gpu_id) > 1:
                         word_img = word_img.cuda()
                         embedding = embedding.cuda()
                     else:
-                        word_img = word_img.cuda(args.gpu_id[0])
-                        embedding = embedding.cuda(args.gpu_id[0])
+                        word_img = word_img.cuda(params.gpu_id[0])
+                        embedding = embedding.cuda(params.gpu_id[0])
 
                 word_img = torch.autograd.Variable(word_img).float()
                 embedding = torch.autograd.Variable(embedding).float()
@@ -225,7 +224,7 @@ def train(params, args):
             logging.info('Evaluating net after %d epochs', epoch + 1)
             val_acc = evaluate_cnn(cnn=cnn,
                          dataset_loader=test_loader,
-                         args=args, params=params)
+                         params=params)
 
             is_best = val_acc >= best_val_acc
 
@@ -234,17 +233,17 @@ def train(params, args):
                 best_val_acc = val_acc
 
                 # Save best val metrics in a json file in the model directory
-                best_json_path = os.path.join(args.model_dir, "metrics_val_best_weights.json")
+                best_json_path = os.path.join(params.model_dir, "metrics_val_best_weights.json")
 
                 # TODO: replace this with more general case
                 val_metrics = {}
                 val_metrics['mAP'] = best_val_acc
 
                 utils.save_dict_to_json(val_metrics, best_json_path)
-                my_torch_save(cnn, os.path.join(args.model_dir, 'PHOCNET_best.pt'))
-    my_torch_save(cnn, os.path.join(args.model_dir, 'PHOCNET_last.pt'))
+                my_torch_save(cnn, os.path.join(params.model_dir, 'PHOCNET_best.pt'))
+    my_torch_save(cnn, os.path.join(params.model_dir, 'PHOCNET_last.pt'))
 
-def evaluate_cnn(cnn, dataset_loader, args, params):
+def evaluate_cnn(cnn, dataset_loader, params):
     # set the CNN in eval mode
     cnn.eval()
     logging.info('Computing net output:')
@@ -254,11 +253,11 @@ def evaluate_cnn(cnn, dataset_loader, args, params):
     embeddings = np.zeros((len(dataset_loader), embedding_size), dtype=np.float32)
     outputs = np.zeros((len(dataset_loader), embedding_size), dtype=np.float32)
     for sample_idx, (word_img, embedding, class_id, is_query) in enumerate(tqdm(dataset_loader)):
-        if args.gpu_id is not None:
+        if params.gpu_id is not None:
             # in one gpu!!
-            word_img = word_img.cuda(args.gpu_id[0])
-            embedding = embedding.cuda(args.gpu_id[0])
-            #word_img, embedding = word_img.cuda(args.gpu_id), embedding.cuda(args.gpu_id)
+            word_img = word_img.cuda(params.gpu_id[0])
+            embedding = embedding.cuda(params.gpu_id[0])
+            #word_img, embedding = word_img.cuda(params.gpu_id), embedding.cuda(params.gpu_id)
         word_img = torch.autograd.Variable(word_img).float()
         embedding = torch.autograd.Variable(embedding).float()
         ''' BCEloss ??? '''
@@ -313,6 +312,7 @@ if __name__ == '__main__':
 
     json_path = os.path.join(args.model_dir, 'params.json')
     assert os.path.isfile(json_path), "No json configuration file found at {}".format(json_path)
-    params = utils.Params(json_path)
 
-    train(params, args)
+    params = utils.Params(json_path)
+    params.args_to_params(args)
+    train(params)

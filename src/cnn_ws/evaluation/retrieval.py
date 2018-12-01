@@ -133,7 +133,7 @@ def map_from_feature_matrix(features, labels, metric, drop_first):
     mean_ap = np.mean(avg_precs)
     return mean_ap, avg_precs
 
-def run_query(num_save, candidates, candidates_labels, queries, args, wiener=True):
+def run_query(num_save, candidates, candidates_labels, queries, params, wiener=True):
     '''
     inputs:
         num_save -- integer indicating how many results to return, -1 means return entire pool of candidates, ranked
@@ -145,6 +145,10 @@ def run_query(num_save, candidates, candidates_labels, queries, args, wiener=Tru
     '''
     unigrams = []
     if wiener:
+        # TODO create a text file with all these unigrams!!!!!!!!!!!!!!!, so we don't have to create it
+        # again and again every time we evaluate or train.
+
+        # QUESTION: how are we going to handle characters that are not in the training set ?
         wiener_root_dir = 'data/wiener'
         phoc_unigram_levels = (1, 2, 4, 8)
         img_filenames = sorted([elem for elem in os.listdir(os.path.join(wiener_root_dir, 'queries', 'word_images'))
@@ -160,7 +164,7 @@ def run_query(num_save, candidates, candidates_labels, queries, args, wiener=Tru
     dist = cdist(query_phoc, candidates, params.eval_metric)
     sorted_results = np.argsort(dist, axis=1)
 
-    if args.save_im_results:
+    if params.save_im_results:
         # display the word along with its top 10 results
         for j, query in enumerate(queries):
             # make directory with query name
