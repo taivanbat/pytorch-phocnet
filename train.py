@@ -120,16 +120,16 @@ def train(params, args):
         train_loader = DataLoader(train_set,
                                   sampler=WeightedRandomSampler(train_set.weights, n_train_images),
                                   batch_size=params.batch_size,
-                                  num_workers=8)
+                                  num_workers=4)
     else:
         train_loader = DataLoader(train_set,
                                   batch_size=params.batch_size, shuffle=True,
-                                  num_workers=8)
+                                  num_workers=4)
 
     test_loader = DataLoader(test_set,
                              batch_size=1,
                              shuffle=False,
-                             num_workers=8)
+                             num_workers=4)
     # load CNN
     logging.info('Preparing PHOCNet...')
 
@@ -144,7 +144,7 @@ def train(params, args):
         #cnn.load_state_dict(torch.load('PHOCNet.pt', map_location=lambda storage, loc: storage))
         my_torch_load(cnn, os.path.join(args.model_dir, args.restore_file))
 
-    loss_selection = 'BCE' # or 'cosine'
+    loss_selection = params.loss_selection # 'BCE' or 'cosine'
     if loss_selection == 'BCE':
         loss = nn.BCEWithLogitsLoss(size_average=True)
     elif loss_selection == 'cosine':
@@ -182,32 +182,14 @@ def train(params, args):
     loss_avg = utils.RunningAverage()
     
     for epoch in range(params.epochs):
+        logging.info('epoch: ' + str(epoch))
         with tqdm(total=len(train_loader)) as t:
             for iter_idx, sample in enumerate(train_loader):
                 word_img, embedding, _, _ = sample
 
-                if iter_idx % params.test_interval == 0: # and iter_idx > 0:
-                    logging.info('Evaluating net after %d iterations', iter_idx)
-                    val_acc = evaluate_cnn(cnn=cnn,
-                                 dataset_loader=test_loader,
-                                 args=args)
-
-                    is_best = val_acc >= best_val_acc
-
-                    if is_best and iter_idx % params.test_interval == 0 and iter_idx != 0:
-                        logging.info("- Found new best accuracy")
-                        best_val_acc = val_acc
-
-                        # Save best val metrics in a json file in the model directory
-                        best_json_path = os.path.join(args.model_dir, "metrics_val_best_weights.json")
-
-                        # TODO: replace this with more general case
-                        val_metrics = {}
-                        val_metrics['mAP'] = best_val_acc
-
-                        utils.save_dict_to_json(val_metrics, best_json_path)
-                        my_torch_save(cnn, os.path.join(args.model_dir, 'PHOCNET_best.pt'))
-
+                # get actual step number 
+                current_step = epoch*len(train_loader) + iter_idx 
+            
                 if args.gpu_id is not None:
                     if len(args.gpu_id) > 1:
                         word_img = word_img.cuda()
@@ -225,9 +207,11 @@ def train(params, args):
 
                 optimizer.step()
                 optimizer.zero_grad()
-
+                
                 # change lr
-                if (iter_idx + 1) == params.learning_rate_step[lr_cnt][0] and (iter_idx+1) != max_iters:
+                if (current_step + 1) == params.learning_rate_step[lr_cnt][0] and (current_step+1) != max_iters:
+                    logging.info('changing learning rate at step %d from %f to %f', current_step + 1, 
+                                 params.learning_rate_step[lr_cnt][1], params.learning_rate_step[lr_cnt + 1][1])
                     lr_cnt += 1
                     for param_group in optimizer.param_groups:
                         param_group['lr'] = params.learning_rate_step[lr_cnt][1]
@@ -236,7 +220,28 @@ def train(params, args):
                 loss_avg.update(loss_val.item())
                 t.set_postfix(loss='{:05.3f}'.format(loss_avg()))
                 t.update()
+        
+        if epoch % params.test_at_epoch == 0: # and iter_idx > 0:
+            logging.info('Evaluating net after %d epochs', epoch + 1)
+            val_acc = evaluate_cnn(cnn=cnn,
+                         dataset_loader=test_loader,
+                         args=args)
 
+            is_best = val_acc >= best_val_acc
+
+            if is_best:
+                logging.info("- Found new best accuracy")
+                best_val_acc = val_acc
+
+                # Save best val metrics in a json file in the model directory
+                best_json_path = os.path.join(args.model_dir, "metrics_val_best_weights.json")
+
+                # TODO: replace this with more general case
+                val_metrics = {}
+                val_metrics['mAP'] = best_val_acc
+
+                utils.save_dict_to_json(val_metrics, best_json_path)
+                my_torch_save(cnn, os.path.join(args.model_dir, 'PHOCNET_best.pt'))
     my_torch_save(cnn, os.path.join(args.model_dir, 'PHOCNET_last.pt'))
 
 def evaluate_cnn(cnn, dataset_loader, args):
@@ -282,6 +287,7 @@ def evaluate_cnn(cnn, dataset_loader, args):
     # run word spotting
     logging.info('Computing mAPs...')
 
+    # TODO make it so that we can choose the evaluation metric from args 
     ave_precs_qbe = map_from_query_test_feature_matrices(query_features = qry_outputs,
                                                          test_features=outputs,
                                                          query_labels = qry_class_ids,
