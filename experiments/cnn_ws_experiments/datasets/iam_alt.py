@@ -91,9 +91,14 @@ class IAMDataset(Dataset):
                     word_img = img_io.imread(word_img_filename)
                 except:
                     continue
+
+                # make sure image is big enough
+                if word_img.shape[0] < min_image_width_height or word_img.shape[1] < min_image_width_height:
+                    continue
+
                 # scale black pixels to 1 and white pixels to 0
                 word_img = 1 - word_img.astype(np.float32) / 255.0
-                
+
                 # word_img = check_size(img=word_img, min_image_width_height=min_image_width_height)
                 words.append((word_img, transcr.lower()))
 
