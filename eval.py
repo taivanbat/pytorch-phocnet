@@ -42,27 +42,29 @@ parser.add_argument('--wiener_from_json', action='store_true')
 
 def eval(params):
     # if candidates aren't known, make them
-    if 'candidates.npy' not in os.listdir('.') or 'candidates_labels.json' not in os.listdir('.'):
+    if 'candidates.npy' not in os.listdir(params.model_dir) or 'candidates_labels.json' not in os.listdir(params.model_dir):
         candidates, candidates_labels = make_candidates(params)
     else:
         # load candidates
-        candidates = np.load('candidates.npy')
+        candidates = np.load(os.path.join(params.model_dir,'candidates.npy'))
 
         # load candidates_labels
-        with open('candidates_labels.json', 'r') as filehandle:
+        with open(os.path.join(params.model_dir,'candidates_labels.json'), 'r') as filehandle:
             candidates_labels = json.load(filehandle)
 
-    # can make this such that it loads from a json file
-    # TODO enable loading from a text file
     # TODO enable handling situations where character is not in the character set
-    queries = ['und', 'ich', 'bin', 'eigen', 'besonders']
+    # queries = ['und', 'ich', 'bin', 'eigen', 'besonders']
+    with open('word_search.txt') as f: 
+        queries = f.read().split()
+
+    queries = [query.lower() for query in queries]
 
     results = run_query(params.num_save_im, candidates, candidates_labels, queries, params)
 
     # save the results. This is a num_queries x num_candidates sized matrix where the indices
     # of the most likely result is stored in column 1, and the second most likely is stored
     # in column 2 and so on
-    np.save('results.npy', results)
+    np.save(os.path.join(params.model_dir, 'results.npy'), results)
 
 def make_candidates(params):
     # load model, create candidates
