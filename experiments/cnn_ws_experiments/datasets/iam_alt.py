@@ -10,6 +10,7 @@ from skimage import io as img_io
 from sklearn.preprocessing import LabelEncoder
 import torch
 from torch.utils.data import Dataset
+from PIL import Image
 
 import scipy.io
 from skimage.transform import resize
@@ -24,7 +25,7 @@ class IAMDataset(Dataset):
     PyTorch dataset class for the segmentation-based George Washington dataset
     '''
 
-    def __init__(self, gw_root_dir, image_extension='.png',
+    def __init__(self, iam_root_dir, image_extension='.png',
                  embedding='phoc',
                  phoc_unigram_levels=(1, 2, 4, 8),
                  use_bigrams = False,
@@ -33,7 +34,7 @@ class IAMDataset(Dataset):
         '''
         Constructor
 
-        :param gw_root_dir: full path to the GW root dir
+        :param iam_root_dir: full path to the GW root dir
         :param image_extension: the extension of image files (default: png)
         :param transform: which transform to use on the images
         :param cv_split_method: the CV method to be used for splitting the dataset
@@ -56,15 +57,15 @@ class IAMDataset(Dataset):
 
         self.fixed_image_size = fixed_image_size
 
-        self.path = gw_root_dir
+        self.path = iam_root_dir
 
         #train_img_names = [line.strip() for line in open(os.path.join(gw_root_dir, 'old_sets/trainset.txt'))]
         #test_img_names = [line.strip() for line in open(os.path.join(gw_root_dir, 'old_sets/testset.txt'))]
 
 
-        train_test_mat = scipy.io.loadmat(os.path.join(gw_root_dir, 'IAM_words_indexes_sets.mat'))
+        # train_test_mat = scipy.io.loadmat(os.path.join(iam_root_dir, 'IAM_words_indexes_sets.mat'))
 
-        gt_file = os.path.join(gw_root_dir, 'info.gtp')
+        gt_file = os.path.join(iam_root_dir, 'info.gtp')
         words = []
         train_split_ids = []
         test_split_ids = []
@@ -80,7 +81,7 @@ class IAMDataset(Dataset):
                                     img_paths[0] + '-' + img_paths[1] + '/' + \
                                     img_name + image_extension
 
-                word_img_filename = os.path.join(gw_root_dir, 'words', word_img_filename)
+                word_img_filename = os.path.join(iam_root_dir, 'words', word_img_filename)
 
                 if not os.path.isfile(word_img_filename):
                     continue
@@ -93,8 +94,14 @@ class IAMDataset(Dataset):
                 # scale black pixels to 1 and white pixels to 0
                 word_img = 1 - word_img.astype(np.float32) / 255.0
 
-                word_img = check_size(img=word_img, min_image_width_height=min_image_width_height)
+                # word_img = check_size(img=word_img, min_image_width_height=min_image_width_height)
                 words.append((word_img, transcr.lower()))
+
+                debug = False
+
+                if debug:
+                    im_tmp = Image.fromarray(np.uint8(word_img * 255))
+                    im_tmp.show()
 
                 '''
                 if '-'.join(img_paths[:-1]) in train_img_names:
@@ -112,9 +119,8 @@ class IAMDataset(Dataset):
         #self.train_ids = train_split_ids
         #self.test_ids = test_split_ids
 
-
-        self.train_ids = [x[0] for x in train_test_mat.get('idxTrain')]
-        self.test_ids = [x[0] for x in train_test_mat.get('idxTest')]
+        # self.train_ids = [x[0] for x in train_test_mat.get('idxTrain')]
+        # self.test_ids = [x[0] for x in train_test_mat.get('idxTest')]
 
         self.words = words
 
@@ -130,7 +136,21 @@ class IAMDataset(Dataset):
         if embedding == 'phoc':
             # extract unigrams
 
-            unigrams = [chr(i) for i in range(ord('a'), ord('z') + 1) + range(ord('0'), ord('9') + 1)]
+            # get unigrams from wiener and append with unigrams from iam
+            wiener_root_dir = 'data/wiener'
+
+            wiener_img_filenames = sorted([elem for elem in os.listdir(os.path.join(wiener_root_dir, 'queries', 'word_images'))
+                                    if elem.endswith('.png')])
+
+            all_names = ''.join(wiener_img_filenames)
+            all_names = all_names.decode('utf-8')
+            unigrams = list(set(all_names))
+
+            # append unigrams from iam
+            unigrams += [chr(i) for i in range(ord('a'), ord('z') + 1) + range(ord('0'), ord('9') + 1)]
+
+            unigrams = list(set(unigrams))
+
             # unigrams = get_unigrams_from_strings(word_strings=[elem[1] for elem in words])
             if use_bigrams:
                 bigram_levels = [2]
@@ -155,16 +175,19 @@ class IAMDataset(Dataset):
     def mainLoader(self, partition=None, transforms=HomographyAugmentation()):
 
         self.transforms = transforms
+        self.split_percent = 0.9
+        train_split_idx = int(self.split_percent * len(self.words))
+
         if partition not in [None, 'train', 'test']:
             raise ValueError('partition must be one of None, train or test')
 
         if partition is not None:
             if partition == 'train':
-                self.word_list = [x for i, x in enumerate(self.words) if self.train_ids[i] == 1]
-                self.word_string_embeddings = [x for i, x in enumerate(self.word_embeddings) if self.train_ids[i] == 1]
+                self.word_list = [word for word in self.words[:train_split_idx]]
+                self.word_string_embeddings = [string for string in self.word_embeddings[:train_split_idx]]
             else:
-                self.word_list = [x for i, x in enumerate(self.words) if self.test_ids[i] == 1]
-                self.word_string_embeddings = [x for i, x in enumerate(self.word_embeddings) if self.test_ids[i] == 1]
+                self.word_list = [word for word in self.words[train_split_idx:]]
+                self.word_string_embeddings = [string for string in self.word_embeddings[train_split_idx:]]
         else:
             # use the entire dataset
             self.word_list = self.words
@@ -177,12 +200,12 @@ class IAMDataset(Dataset):
             qry_word_ids = unique_word_strings[np.where(counts > 1)[0]]
 
             # remove stopwords if needed
-            stopwords = []
-            for line in open(os.path.join(self.path, 'iam-stopwords')):
-                stopwords.append(line.strip().split(','))
-            stopwords = stopwords[0]
-
-            qry_word_ids = [word for word in qry_word_ids if word not in stopwords]
+            # stopwords = []
+            # for line in open(os.path.join(self.path, 'iam-stopwords')):
+            #     stopwords.append(line.strip().split(','))
+            # stopwords = stopwords[0]
+            #
+            # qry_word_ids = [word for word in qry_word_ids if word not in stopwords]
 
             query_list = np.zeros(len(word_strings), np.int8)
             qry_ids = [i for i in range(len(word_strings)) if word_strings[i] in qry_word_ids]

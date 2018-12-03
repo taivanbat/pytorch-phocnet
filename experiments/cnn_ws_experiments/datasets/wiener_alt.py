@@ -69,21 +69,24 @@ class WienerDataset(Dataset):
         words = []
         for idx, img_filename in enumerate(img_filenames):
             word_img = img_io.imread(os.path.join(wiener_root_dir, 'queries', 'word_images', img_filename))
-            word_img = check_size(img=word_img,
-                                  min_image_width_height=min_image_width_height)
+
+            # scale black pixels to 1 and white pixels to 0
+            word_img = 1 - word_img.astype(np.float32) / 255.0
+
+            debug = True
+
+            if debug:
+                im_tmp = Image.fromarray(np.uint8(word_img*255))
+                im_tmp.show()
+
             packt = [x.decode('utf-8') for x in img_filename[:-4].split('_') if len(x) > 0]
             if len(packt) == 3:
                 page_id, transcr, _ = packt
             else:
                 continue
+
             words.append((word_img, transcr, page_id))
             word_idx += [idx]
-
-            debug = False
-
-            if debug:
-                word_img = Image.fromarray(np.uint8(word_img*255))
-                word_img.show()
 
         self.words = words
         # compute a mapping from class string to class id

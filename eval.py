@@ -32,7 +32,6 @@ parser.add_argument('--gpu_id', '-gpu', action='store',
                     default='0',
                     help='The ID of the GPU to use. If not specified, training is run in CPU mode.')
 parser.add_argument('--model_dir', default='models/base_model', help="Directory containing params.json")
-parser.add_argument('--save_candidates_dir', default='.', help="Where to save candidates.npy and candidates_labels.json")
 parser.add_argument('--debug', action='store_true', help='Set to true if we want to debug')
 parser.add_argument('--save_im_results', default=True, help='Set to true if we want to save top num_save_im results of search')
 parser.add_argument('--num_save_im', default=10, help='how many images to save')
@@ -233,10 +232,10 @@ def make_candidates(params):
                 t.update(1)
 
     # save candidates as npy file
-    np.save(os.path.join(params.save_candidates_dir,'candidates.npy'), candidates)
+    np.save(os.path.join(params.model_dir,'candidates.npy'), candidates)
 
     # save candidates_labels as json file
-    with open(os.path.join(params.save_candidates_dir, 'candidates_labels.json'), 'w') as filehandle:
+    with open(os.path.join(params.model_dir, 'candidates_labels.json'), 'w') as filehandle:
         json.dump(candidates_labels, filehandle)
 
     return candidates, candidates_labels

@@ -100,7 +100,7 @@ def train(params):
                                   min_image_width_height=params.min_image_width_height)
 
     if params.dataset == 'iam':
-        train_set = IAMDataset(gw_root_dir='../../../phocnet-pytorch-master/data/IAM',
+        train_set = IAMDataset(iam_root_dir='data/iam',
                                image_extension='.png',
                                embedding=params.embedding_type,
                                phoc_unigram_levels=params.phoc_unigram_levels,
@@ -173,8 +173,8 @@ def train(params):
                                     weight_decay=params.weight_decay)
 
     # set best_mAP, because loading pretrained model that we shouldn't overwrite
-    # TODO: step setting best_mAP manually
-    best_val_acc = 0.0
+    # TODO: set best_val_acc from json file storing statistics for best model
+    best_val_acc = params.best_mAP
     optimizer.zero_grad()
     logging.info('Training:')
 
@@ -315,4 +315,13 @@ if __name__ == '__main__':
 
     params = utils.Params(json_path)
     params.args_to_params(args)
+
+    # load best accuracy into params
+    if params.restore_file is not None:
+        with open(os.path.join(params.model_dir, 'metrics_val_best_weights.json')) as f:
+            best_metrics = json.load(f)
+        params.best_mAP = best_metrics.mAP
+    else:
+        params.best_mAP = 0
+
     train(params)
