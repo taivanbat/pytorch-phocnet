@@ -173,7 +173,6 @@ def train(params):
                                     weight_decay=params.weight_decay)
 
     # set best_mAP, because loading pretrained model that we shouldn't overwrite
-    # TODO: set best_val_acc from json file storing statistics for best model
     best_val_acc = params.best_mAP
     optimizer.zero_grad()
     logging.info('Training:')

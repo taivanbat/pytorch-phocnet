@@ -93,7 +93,7 @@ class IAMDataset(Dataset):
                     continue
                 # scale black pixels to 1 and white pixels to 0
                 word_img = 1 - word_img.astype(np.float32) / 255.0
-
+                
                 # word_img = check_size(img=word_img, min_image_width_height=min_image_width_height)
                 words.append((word_img, transcr.lower()))
 
