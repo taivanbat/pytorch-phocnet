@@ -58,7 +58,8 @@ class PHOCNet(nn.Module):
         y = F.dropout(y, p=0.5, training=self.training)
         y = F.relu(self.fc6(y))
         y = F.dropout(y, p=0.5, training=self.training)
-        y = self.fc7(y)
+        # added sigmoid to output
+        y = self.fc7(y) 
         return y
 
     def init_weights(self):

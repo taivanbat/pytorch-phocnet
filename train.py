@@ -157,7 +157,7 @@ def train(params):
             cnn = nn.DataParallel(cnn, device_ids=params.gpu_id)
             cnn.cuda()
         else:
-            cnn.cuda(params.gpu_id[0])
+            cnn.cuda()
 
     # run training
     lr_cnt = 0
@@ -193,8 +193,8 @@ def train(params):
                         word_img = word_img.cuda()
                         embedding = embedding.cuda()
                     else:
-                        word_img = word_img.cuda(params.gpu_id[0])
-                        embedding = embedding.cuda(params.gpu_id[0])
+                        word_img = word_img.cuda()
+                        embedding = embedding.cuda()
 
                 word_img = torch.autograd.Variable(word_img).float()
                 embedding = torch.autograd.Variable(embedding).float()
@@ -254,8 +254,8 @@ def evaluate_cnn(cnn, dataset_loader, params):
     for sample_idx, (word_img, embedding, class_id, is_query) in enumerate(tqdm(dataset_loader)):
         if params.gpu_id is not None:
             # in one gpu!!
-            word_img = word_img.cuda(params.gpu_id[0])
-            embedding = embedding.cuda(params.gpu_id[0])
+            word_img = word_img.cuda()
+            embedding = embedding.cuda()
             #word_img, embedding = word_img.cuda(params.gpu_id), embedding.cuda(params.gpu_id)
         word_img = torch.autograd.Variable(word_img).float()
         embedding = torch.autograd.Variable(embedding).float()
@@ -314,6 +314,9 @@ if __name__ == '__main__':
 
     params = utils.Params(json_path)
     params.args_to_params(args)
+
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id[0]) 
 
     # load best accuracy into params
     if params.restore_file is not None:
