@@ -156,6 +156,8 @@ def run_query(num_save, candidates, candidates_labels, queries, params, wiener=T
         all_names = ''.join(img_filenames)
         all_names = all_names.decode('utf-8')
         unigrams = list(set(all_names))
+        unigrams += [chr(i) for i in range(ord('a'), ord('z') + 1) + range(ord('0'), ord('9') + 1)]
+        unigrams = list(set(unigrams))
 
     query_phoc = build_phoc_descriptor(words=queries,
                                        phoc_unigrams=unigrams,
@@ -163,12 +165,15 @@ def run_query(num_save, candidates, candidates_labels, queries, params, wiener=T
 
     dist = cdist(query_phoc, candidates, params.eval_metric)
     sorted_results = np.argsort(dist, axis=1)
+    """   
+    # TODO: filter out images that don't have similar ratios
+    num_ratio_matches= 0 
 
     if params.save_im_results:
         # display the word along with its top 10 results
         for j, query in enumerate(queries):
             # make directory with query name
-            default_dir = os.path.join(wiener_root_dir, 'results')
+            default_dir = os.path.join(params.model_dir, 'results')
             results_dir = os.path.join(default_dir, query)
             os.makedirs(results_dir)
 
@@ -180,5 +185,5 @@ def run_query(num_save, candidates, candidates_labels, queries, params, wiener=T
                 img = img_io.imread(im_path)
                 img = Image.fromarray(np.uint8(img * 255))
                 img.save(os.path.join(results_dir, str(result_i) + '_' + candidates_labels[idx] + '.jpg'))
-
+    """
     return sorted_results

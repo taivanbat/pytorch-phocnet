@@ -26,6 +26,7 @@ import torch.nn as nn
 import torch.optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import json 
 
 import copy
 from experiments.cnn_ws_experiments.datasets.iam_alt import IAMDataset
@@ -57,6 +58,8 @@ parser.add_argument('--fixed_image_size', '-fim', action='store',
                     type=lambda str_tuple: tuple([int(elem) for elem in str_tuple.split(',')]),
                     default=None,
                     help='Specifies the images to be resized to a fixed size when presented to the CNN. Argument must be two comma seperated numbers.')
+parser.add_argument('--load_best_metrics', action='store_true', help='If we want to load best metrics')
+parser.add_argument('--dont_save_model', action='store_true', help='If we want to load best metrics')
 
 def learning_rate_step_parser(lrs_string):
     return [(int(elem.split(':')[0]), float(elem.split(':')[1])) for elem in lrs_string.split(',')]
@@ -133,15 +136,16 @@ def train(params):
     # load CNN
     logging.info('Preparing PHOCNet...')
 
+    # GPP vs SPP 
     cnn = PHOCNet(n_out=train_set[0][1].shape[0],
                   input_channels=1,
-                  gpp_type='gpp',
-                  pooling_levels=([1], [5]))
+                  gpp_type=params.gpp_type,
+                  pooling_levels=params.pooling_levels)
 
     cnn.init_weights()
 
     if params.restore_file is not None:
-        my_torch_load(cnn, os.path.join(params.model_dir, params.restore_file))
+        my_torch_load(cnn, params.restore_file)
 
     loss_selection = params.loss_selection # 'BCE' or 'cosine'
     if loss_selection == 'BCE':
@@ -220,10 +224,14 @@ def train(params):
                 t.update()
         
         if epoch % params.test_at_epoch == 0: # and iter_idx > 0:
-            logging.info('Evaluating net after %d epochs', epoch + 1)
+            logging.info('Evaluating at epoch %d', epoch + 1)
             val_acc = evaluate_cnn(cnn=cnn,
                          dataset_loader=test_loader,
                          params=params)
+                
+            logging.info('mAP: %3.2f', val_acc*100) 
+            logging.info('loss: {:05.3f}'.format(loss_avg()))
+            logging.info('-----------------------------------')
 
             is_best = val_acc >= best_val_acc
 
@@ -237,10 +245,14 @@ def train(params):
                 # TODO: replace this with more general case
                 val_metrics = {}
                 val_metrics['mAP'] = best_val_acc
+                val_metrics['loss'] = loss_avg() 
 
                 utils.save_dict_to_json(val_metrics, best_json_path)
-                my_torch_save(cnn, os.path.join(params.model_dir, 'PHOCNET_best.pt'))
-    my_torch_save(cnn, os.path.join(params.model_dir, 'PHOCNET_last.pt'))
+                if not params.dont_save_model:
+                    my_torch_save(cnn, os.path.join(params.model_dir, 'PHOCNET_best.pt'))
+    
+    if not params.dont_save_model: 
+        my_torch_save(cnn, os.path.join(params.model_dir, 'PHOCNET_last.pt'))
 
 def evaluate_cnn(cnn, dataset_loader, params):
     # set the CNN in eval mode
@@ -294,8 +306,6 @@ def evaluate_cnn(cnn, dataset_loader, params):
                                                          drop_first=True)
     
     mAP = np.mean(ave_precs_qbe[ave_precs_qbe > 0])
-    logging.info('mAP: %3.2f', mAP*100)
-
     # clean up -> set CNN in train mode again
     cnn.train()
 
@@ -308,8 +318,9 @@ if __name__ == '__main__':
 
     # Set the logger
     utils.set_logger(os.path.join(args.model_dir, 'train.log'))
-
+    
     json_path = os.path.join(args.model_dir, 'params.json')
+    print(json_path)
     assert os.path.isfile(json_path), "No json configuration file found at {}".format(json_path)
 
     params = utils.Params(json_path)
@@ -319,11 +330,11 @@ if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id[0]) 
 
     # load best accuracy into params
-    if params.restore_file is not None:
+    if params.restore_file is not None and params.load_best_metrics:
         with open(os.path.join(params.model_dir, 'metrics_val_best_weights.json')) as f:
             best_metrics = json.load(f)
-        params.best_mAP = best_metrics.mAP
+        params.best_mAP = best_metrics["mAP"]
     else:
         params.best_mAP = 0
-
+    
     train(params)

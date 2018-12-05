@@ -73,16 +73,16 @@ def make_candidates(params):
         # this is the base path
         # within it are wiener_images_cropped (containing original images with original size)
         # and also wiener_images_segmented (containing the .json files with bounding box information)
-        path_to_cands = 'data/big_wiener/'
+        path_to_cands = '/specific/disk1/home/adiel/wiener'
     else:
         path_to_cands = 'data/wiener/candidates/word_images'
 
     # load model
     # 675 is what we have by default
-    cnn = PHOCNet(n_out=675,
+    cnn = PHOCNet(n_out=690,
                   input_channels=1,
-                  gpp_type='gpp',
-                  pooling_levels=([1], [5]))
+                  gpp_type=params.gpp_type,
+                  pooling_levels=params.pooling_levels)
 
     cnn.init_weights()
 
@@ -139,6 +139,7 @@ def make_candidates(params):
                 word_imgs = []
                 bboxes = []
                 bboxes_idx = []
+                ratios = []
 
                 for box_idx in range(json_info['predictions']):
                     # get coordinates in original image that's why r*coord
@@ -158,6 +159,9 @@ def make_candidates(params):
 
                     bboxes += [bbox]
                     bboxes_idx += ['box_' + str(box_idx)]
+                    
+                    # save ratio of x/y of image
+                    ratios += [(bbox[2]-bbox[0])/float(bbox[3] - bbox[1])]
 
                     word_imgs += [word_img]
                     # if params.debug:
@@ -167,7 +171,8 @@ def make_candidates(params):
                 # save information about where each image is from, and its bounding box info
                 candidates_labels += [{'page': os.path.join(collection, page_name),
                                        'bbox': bbox,
-                                       'bbox_idx': bboxes_idx[idx]} for idx, bbox in enumerate(bboxes)]
+                                       'bbox_idx': bboxes_idx[idx],
+                                       'xy_ratio': ratios[idx]} for idx, bbox in enumerate(bboxes)]
 
                 # get phoc representation of words
                 word_imgs = [torch.autograd.Variable(torch.from_numpy(word_img)).float() for word_img in word_imgs]

@@ -101,7 +101,11 @@ class WienerDataset(Dataset):
         all_names = ''.join(img_filenames)
         all_names = all_names.decode('utf-8')
         unigrams = list(set(all_names))
+        
+        unigrams += [chr(i) for i in range(ord('a'), ord('z') + 1) + range(ord('0'), ord('9') + 1)]
 
+        unigrams = list(set(unigrams))
+        
         #unigrams = get_unigrams_from_strings(word_strings=[elem[1] for elem in words])
         # create embedding for the word_list
         self.word_embeddings = None
