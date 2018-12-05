@@ -120,85 +120,89 @@ def make_candidates(params):
             page_names = sorted([page_name for page_name in page_names if page_name.endswith('.jpg')])
 
             logging.info('going over collection %s with %s images', collection, str(len(page_names)))
+            
+            # go over up to a 100 images
 
-            # iterate over pages
-            for page_idx, page_name in enumerate(page_names):
-                # numpy --> page_img.shape is in row x col
-                page_img = img_io.imread(os.path.join(cropped_img_folder, collection, page_name))
+            num_pages = min(len(page_names),100)
 
-                ratio_yx = float(page_img.shape[0])/page_img.shape[1]
+            with tqdm(total=num_pages) as t:
+                # iterate over pages
+                for page_idx, page_name in enumerate(page_names[:num_pages]):
+                    # numpy --> page_img.shape is in row x col
+                    page_img = img_io.imread(os.path.join(cropped_img_folder, collection, page_name))
 
-                if ratio_yx < float(1200)/900:
-                    r = page_img.shape[1]/float(900)
-                else:
-                    r = page_img.shape[0]/float(1200)
+                    ratio_yx = float(page_img.shape[0])/page_img.shape[1]
 
-                with open(os.path.join(segmented_img_folder, collection, page_name[:-4] + '.json')) as json_f:
-                    json_info = json.load(json_f)
+                    if ratio_yx < float(1200)/900:
+                        r = page_img.shape[1]/float(900)
+                    else:
+                        r = page_img.shape[0]/float(1200)
 
-                word_imgs = []
-                bboxes = []
-                bboxes_idx = []
-                ratios = []
+                    with open(os.path.join(segmented_img_folder, collection, page_name[:-4] + '.json')) as json_f:
+                        json_info = json.load(json_f)
 
-                for box_idx in range(json_info['predictions']):
-                    # get coordinates in original image that's why r*coord
-                    bbox = [int(r*coord) for coord in json_info['box_' + str(box_idx)]['pred']]
+                    word_imgs = []
+                    bboxes = []
+                    bboxes_idx = []
+                    ratios = []
 
-                    # make sure we're not going over the image limits
-                    bbox[1] = max(0, bbox[1])
-                    bbox[3] = min(page_img.shape[0], bbox[3])
-                    bbox[0] = max(0,bbox[0])
-                    bbox[2] = min(page_img.shape[1], bbox[2])
+                    for box_idx in range(json_info['predictions']):
+                        # get coordinates in original image that's why r*coord
+                        bbox = [int(r*coord) for coord in json_info['box_' + str(box_idx)]['pred']]
 
-                    area = (bbox[3]-bbox[1])*(bbox[2]-bbox[0])
-                    if area < 100:
-                        continue
+                        # make sure we're not going over the image limits
+                        bbox[1] = max(0, bbox[1])
+                        bbox[3] = min(page_img.shape[0], bbox[3])
+                        bbox[0] = max(0,bbox[0])
+                        bbox[2] = min(page_img.shape[1], bbox[2])
 
-                    word_img = page_img[bbox[1]:bbox[3], bbox[0]:bbox[2]]
+                        area = (bbox[3]-bbox[1])*(bbox[2]-bbox[0])
+                        if area < 100:
+                            continue
 
-                    bboxes += [bbox]
-                    bboxes_idx += ['box_' + str(box_idx)]
-                    
-                    # save ratio of x/y of image
-                    ratios += [(bbox[2]-bbox[0])/float(bbox[3] - bbox[1])]
+                        word_img = page_img[bbox[1]:bbox[3], bbox[0]:bbox[2]]
 
-                    word_imgs += [word_img]
-                    # if params.debug:
-                        # word = Image.fromarray(word_img)
-                        # word.show()
+                        bboxes += [bbox]
+                        bboxes_idx += ['box_' + str(box_idx)]
+                        
+                        # save ratio of x/y of image
+                        ratios += [(bbox[2]-bbox[0])/float(bbox[3] - bbox[1])]
 
-                # save information about where each image is from, and its bounding box info
-                candidates_labels += [{'page': os.path.join(collection, page_name),
-                                       'bbox': bbox,
-                                       'bbox_idx': bboxes_idx[idx],
-                                       'xy_ratio': ratios[idx]} for idx, bbox in enumerate(bboxes)]
+                        word_imgs += [word_img]
+                        # if params.debug:
+                            # word = Image.fromarray(word_img)
+                            # word.show()
 
-                # get phoc representation of words
-                word_imgs = [torch.autograd.Variable(torch.from_numpy(word_img)).float() for word_img in word_imgs]
+                    # save information about where each image is from, and its bounding box info
+                    candidates_labels += [{'page': os.path.join(collection, page_name),
+                                           'bbox': bbox,
+                                           'bbox_idx': bboxes_idx[idx],
+                                           'xy_ratio': ratios[idx]} for idx, bbox in enumerate(bboxes)]
 
-                if params.gpu_id is not None:
-                    word_imgs = [word_img.cuda(params.gpu_id[0]) for word_img in word_imgs]
+                    # get phoc representation of words
+                    word_imgs = [torch.autograd.Variable(torch.from_numpy(word_img)).float() for word_img in word_imgs]
 
-                word_imgs = [word_img.unsqueeze(0) for word_img in word_imgs]
-                word_imgs = [word_img.unsqueeze(0) for word_img in word_imgs]
+                    if params.gpu_id is not None:
+                        word_imgs = [word_img.cuda(params.gpu_id[0]) for word_img in word_imgs]
 
-                # get phoc representation of words
-                word_phocs = []
-                logging.info('page %s', str(page_idx + 1))
-                with tqdm(total=len(word_imgs)) as t_phoc:
+                    word_imgs = [word_img.unsqueeze(0) for word_img in word_imgs]
+                    word_imgs = [word_img.unsqueeze(0) for word_img in word_imgs]
+
+                    # get phoc representation of words
+                    word_phocs = []
                     for word_img in word_imgs:
                         word_phocs += [torch.sigmoid(cnn(word_img))]
-                        t_phoc.update(1)
 
-                word_phocs = [word_phoc.data.cpu().numpy().flatten() for word_phoc in word_phocs]
-                word_phocs = np.vstack(word_phocs)
-                # concatenate along the row dimension as a numpy array
-                # if very first item
-                if coll_idx == 0 and page_idx == 0:
-                    candidates = np.vstack(word_phocs)
-                else:
-                    candidates = np.vstack((candidates, word_phocs))
+                    word_phocs = [word_phoc.data.cpu().numpy().flatten() for word_phoc in word_phocs]
+                    word_phocs = np.vstack(word_phocs)
+                    # concatenate along the row dimension as a numpy array
+                    # if very first item
+                    if coll_idx == 0 and page_idx == 0:
+                        candidates = np.vstack(word_phocs)
+                    else:
+                        candidates = np.vstack((candidates, word_phocs))
+                    
+                    t.update(1)
     else:
         folders = os.listdir(path_to_cands)
         folders = [folder for folder in folders if folder != '.DS_Store']
@@ -206,7 +210,6 @@ def make_candidates(params):
         if params.debug:
             folders = folders[:2]
 
-        with tqdm(total=len(folders)) as t:
             for i, folder in enumerate(folders):
                 word_img_names = sorted(
                     [elem for elem in os.listdir(os.path.join(path_to_cands, folder)) if elem.endswith('.jpg')])
